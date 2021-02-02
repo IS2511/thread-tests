@@ -54,7 +54,8 @@ Average write MB/s: 1164.75
 Not much difference between any SATA connected disk,
 probably because of caching and small data batches (1MB)
 
-Mediumly-interesting are patterns in `Queue sizes`:
+
+Mildly interesting are patterns in `Queue sizes`:
 - On a slow disk the pattern is easily explained, pushing to queue
   is much faster then writing to disk so we see a fast climb in numbers,
   followed by a slow decline at the rate of -1 (for each disk write)
