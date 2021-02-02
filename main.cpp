@@ -11,7 +11,7 @@
 
 using namespace std;
 
-const int64_t COUNTER_HZ = 1000000;
+const int64_t COUNTER_HZ = 1000;
 const int32_t ONE_MB = 1024*1024;
 const int32_t counterThreadDataSize = 256*ONE_MB;
 
