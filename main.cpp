@@ -7,8 +7,11 @@
 #include <mutex>
 #include <condition_variable>
 
+#define PREFILL_DATA
+
 using namespace std;
 
+const int64_t COUNTER_HZ = 1000000;
 const int32_t ONE_MB = 1024*1024;
 const int32_t counterThreadDataSize = 256*ONE_MB;
 
@@ -17,76 +20,126 @@ struct dataChunk {
     size_t size;
 };
 
-mutex mtx;
-condition_variable cv;
-bool threadFinish = false;
-queue<dataChunk> threadQueue;
 
+void fileError(ofstream::failure& err, string custom) { // NOLINT(performance-unnecessary-value-param)
+    throw runtime_error(custom + " | " + err.what() + "\n");
+}
+
+
+mutex mtx, mtxCounterWait;
+condition_variable cv, cvCounterWait;
+bool threadFinish = false;
+// Why the warning? Very interesting...
+// Clang-Tidy: Initialization of 'threadQueue' with static storage duration may throw an exception that cannot be caught
+queue<dataChunk> threadQueue;
+queue<chrono::duration<double>> threadTimerQueue;
+queue<size_t> timerQueueSizes;
 
 thread counterThread;
 void counterFunc() {
+    unique_lock<mutex> lck(mtxCounterWait);
     char* data = new char[counterThreadDataSize];
-    fill(data, data + counterThreadDataSize, 'A');
+//    fill(data, data + counterThreadDataSize, 'A'); // Testing
+#if defined(PREFILL_DATA)
+    for (size_t i = 0; i < ONE_MB; i++) { // Pre-filling is much better
+        data[i] = static_cast<char>((i%255)+1);
+    }
+#endif
     for (size_t i = 0; i < counterThreadDataSize/ONE_MB; i++) {
+        chrono::steady_clock::time_point timerStart = chrono::steady_clock::now();
+#if !defined(PREFILL_DATA)
+        for (size_t j = 0; j < ONE_MB; j++) { // Slows down A LOT
+            data[i*ONE_MB + j] = static_cast<char>((j%255)+1);
+        }
+#endif
         dataChunk d = {
             .pointer = data + (i * ONE_MB),
             .size = ONE_MB
         };
         threadQueue.push(d);
         if (threadQueue.size() > 256) throw runtime_error("threadQueue buffer overflow (>256)");
+        if (i == (counterThreadDataSize/ONE_MB - 1)) threadFinish = true;
         cv.notify_all();
+
+        cout << "."; cout.flush();
+
+        // Slows down a lot, but only on smaller time scales
+        cvCounterWait.wait_until(lck, timerStart + chrono::microseconds(1000000/COUNTER_HZ));
     }
-    threadFinish = true;
+
+    while (!threadQueue.empty()) cv.notify_all();
+
 }
 
 thread listenerThread;
 void listenerFunc() {
     unique_lock<mutex> lck(mtx);
     ofstream file;
-    file.open("thread-tests.tmp");
-    while (!threadFinish) {
+
+    try {
+        file.open("thread-tests.tmp");
+    } catch (ofstream::failure& err) {
+        fileError(err, "Error opening file for writing!");
+        return;
+    }
+    chrono::steady_clock::time_point timer1, timer2;
+    while ( !(threadQueue.empty() && threadFinish) ) {
         cv.wait(lck);
+        timerQueueSizes.push(threadQueue.size());
         dataChunk d = threadQueue.front();
         threadQueue.pop();
-        file.write(d.pointer, d.size);
-        file.flush();
+        timer1 = chrono::steady_clock::now();
+        try {
+            file.write(d.pointer, d.size);
+            file.flush();
+        } catch (ofstream::failure& err) {
+            fileError(err, "Error writing file!");
+            return;
+        }
+        timer2 = chrono::steady_clock::now();
+        threadTimerQueue.push( chrono::duration_cast<chrono::duration<double>>(timer2 - timer1) );
     }
-    file.close();
+    try {
+        file.close();
+    } catch (ofstream::failure& err) {
+        fileError(err, "Error closing file!");
+        return;
+    }
 }
 
 
 int main(int argc, char* argv[]) {
 
-    char* counter1MB = new char[ONE_MB];
     threadQueue = queue<dataChunk>();
 
     cout << "Starting threads..." << endl;
+    cout << "Doing the thing"; cout.flush();
+
 
     listenerThread = thread(listenerFunc);
     counterThread = thread(counterFunc);
 
-    chrono::steady_clock::time_point timer1 = chrono::steady_clock::now();
+    counterThread.join();
+    listenerThread.join();
 
-    if (!flag_dryRun) {
-        for (int i = 0; i < filecount; ++i) {
-            try {
-                file.open("chrono-tests_"+to_string(i)+".tmp");
-                file.write(data, filesize);
-                file.close();
-            } catch (ofstream::failure& err) {
-                cerr << "Error when writing file! | ";
-                cerr << err.what() << endl;
-                return 1;
-            }
-        }
+
+    chrono::duration<double> total = chrono::seconds(0);
+    size_t threadTimerQueueSize = threadTimerQueue.size();
+    while (!threadTimerQueue.empty()) {
+        chrono::duration<double> duration = threadTimerQueue.front();
+        total += duration;
+        threadTimerQueue.pop();
     }
 
-    chrono::steady_clock::time_point timer2 = chrono::steady_clock::now();
 
-    chrono::duration<double> timer = chrono::duration_cast<chrono::duration<double>>(timer2 - timer1);
-
-    cout << "Test ended! Results:" << endl;
-    cout << "Total time: " << timer.count() << " seconds." << endl;
-    cout << "Average time per file: " << (timer.count()/filecount) << " seconds." << endl;
+    cout << "\nProgram finished!\n";
+    cout << "Queue sizes on each write: ";
+    while (!timerQueueSizes.empty()) {
+        cout << timerQueueSizes.front() << " ";
+        timerQueueSizes.pop();
+    } cout << endl;
+    cout << "Total time taken: " << total.count() << endl;
+    cout << "Average time per write: " << (total/threadTimerQueueSize).count() << endl;
+    cout << "Average write MB/s: " << (1/(total/threadTimerQueueSize).count()) << endl;
 
 }
