@@ -26,8 +26,8 @@ void fileError(ofstream::failure& err, string custom) { // NOLINT(performance-un
 }
 
 
-mutex mtx, mtxCounterWait;
-condition_variable cv, cvCounterWait;
+mutex mtxListener, mtxCounter, mtxMain;
+condition_variable cvListener, cvCounter, cvMain, cvStart;
 bool threadFinish = false;
 // Why the warning? Very interesting...
 // Clang-Tidy: Initialization of 'threadQueue' with static storage duration may throw an exception that cannot be caught
@@ -37,7 +37,7 @@ queue<size_t> timerQueueSizes;
 
 thread counterThread;
 void counterFunc() {
-    unique_lock<mutex> lck(mtxCounterWait);
+    unique_lock<mutex> lck(mtxCounter);
     char* data = new char[counterThreadDataSize];
 //    fill(data, data + counterThreadDataSize, 'A'); // Testing
 #if defined(PREFILL_DATA)
@@ -45,8 +45,10 @@ void counterFunc() {
         data[i] = static_cast<char>((i%255)+1);
     }
 #endif
+    cvMain.notify_all(); // I'm ready
+    cvStart.wait(lck); // Wait for equal start
     for (size_t i = 0; i < counterThreadDataSize/ONE_MB; i++) {
-        chrono::steady_clock::time_point timerStart = chrono::steady_clock::now();
+        chrono::high_resolution_clock::time_point timerStart = chrono::high_resolution_clock::now();
 #if !defined(PREFILL_DATA)
         for (size_t j = 0; j < ONE_MB; j++) { // Slows down A LOT
             data[i*ONE_MB + j] = static_cast<char>((j%255)+1);
@@ -59,21 +61,21 @@ void counterFunc() {
         threadQueue.push(d);
         if (threadQueue.size() > 256) throw runtime_error("threadQueue buffer overflow (>256)");
         if (i == (counterThreadDataSize/ONE_MB - 1)) threadFinish = true;
-        cv.notify_all();
+        cvListener.notify_all();
 
         cout << "."; cout.flush();
 
         // Slows down a lot, but only on smaller time scales
-        cvCounterWait.wait_until(lck, timerStart + chrono::microseconds(1000000/COUNTER_HZ));
+        cvCounter.wait_until(lck, timerStart + chrono::microseconds(1000000 / COUNTER_HZ));
     }
 
-    while (!threadQueue.empty()) cv.notify_all();
+    while (!threadQueue.empty()) cvListener.notify_all();
 
 }
 
 thread listenerThread;
 void listenerFunc() {
-    unique_lock<mutex> lck(mtx);
+    unique_lock<mutex> lck(mtxListener);
     ofstream file;
 
     try {
@@ -83,8 +85,10 @@ void listenerFunc() {
         return;
     }
     chrono::steady_clock::time_point timer1, timer2;
+    cvMain.notify_all(); // I'm ready
+    cvStart.wait(lck); // Wait for equal start
     while ( !(threadQueue.empty() && threadFinish) ) {
-        cv.wait(lck);
+        cvListener.wait(lck);
         timerQueueSizes.push(threadQueue.size());
         dataChunk d = threadQueue.front();
         threadQueue.pop();
@@ -109,6 +113,7 @@ void listenerFunc() {
 
 
 int main(int argc, char* argv[]) {
+    unique_lock<mutex> lck(mtxMain);
 
     threadQueue = queue<dataChunk>();
 
@@ -118,6 +123,10 @@ int main(int argc, char* argv[]) {
 
     listenerThread = thread(listenerFunc);
     counterThread = thread(counterFunc);
+
+    cvMain.wait_for(lck, chrono::seconds(1)); // Wait for threads to be ready
+    cvMain.wait_for(lck, chrono::seconds(1)); // wait_for() to guarantee a start
+    cvStart.notify_all(); // Start!
 
     counterThread.join();
     listenerThread.join();
