@@ -65,10 +65,11 @@ Mildly interesting are patterns in `Queue sizes`:
 - On a slow disk the pattern is easily explained, pushing to queue
   is much faster then writing to disk so we see fast growth of numbers,
   followed by a slow decline at the rate of -1 (for each disk write)
-- In the second result there are small periodic plateaus visible starting
+- In the second result there are periodic plateaus visible starting
   from the beginning, they are about 8MB, close to typical
-  old and/or low-cost HDD cache sizes.
-  The climb between them is slow and steady, normal decline at the end
+  old and/or low-cost HDD cache sizes. The climb between them is
+  not that fast either. One big steady climb is present, I blame weird caching.
+  Normal decline at the end, nothing special
 - The third result's data shows a big "plateau" like climb in the
   beginning for approx. 140MB, until the disk surrenders and stops caching.
   Now, writing directly, the speed is slower, so the climbing speeds up.
