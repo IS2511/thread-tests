@@ -7,6 +7,6 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 add_executable(thread-tests
-        main.cpp)
+        main.cpp round_buffer.cpp)
 
 target_link_libraries(thread-tests PRIVATE Threads::Threads)
