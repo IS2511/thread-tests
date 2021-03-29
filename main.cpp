@@ -5,7 +5,6 @@
 #include <queue>
 #include <thread>
 #include <mutex>
-//#include <atomic>
 #include <condition_variable>
 
 #include "round_buffer.h"
@@ -22,7 +21,7 @@ const size_t BUFFER_SIZE = 256 * CHUNK_SIZE; // 256 MB
 const size_t DATA_SIZE = 2 * 1024 * ONE_MB; // 2 GB
 //const size_t DATA_SIZE = 512 * ONE_MB;
 
-uint32_t chunkInboundSpeedUpper = 2000;
+uint32_t chunkInboundSpeedUpper = 100000;
 uint32_t chunkInboundSpeedLower = 0;
 uint32_t chunkInboundSpeed = (chunkInboundSpeedUpper + chunkInboundSpeedLower)/2;
 void cisLower() {
@@ -73,6 +72,7 @@ void counterFunc(const char* DATA) {
 
 //        cout << ".";  cout.flush(); // TODO: Needed?
 
+        // TODO: this probably does not work... busy waiting instead?
         // Slows down a lot, but only on very small time scales
         cvCounter.wait_until(lck, tmrStart + chrono::microseconds(1000000 / chunkInboundSpeed) );
     }

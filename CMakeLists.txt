@@ -10,3 +10,6 @@ add_executable(thread-tests
         main.cpp round_buffer.cpp)
 
 target_link_libraries(thread-tests PRIVATE Threads::Threads)
+
+#add_subdirectory(tst)
+#add_subdirectory(lib/googletest)

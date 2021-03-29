@@ -15,6 +15,10 @@ round_buffer::round_buffer(size_t size, int mode) {
     this->mode = mode;
 }
 
+round_buffer::~round_buffer() {
+    delete buffer;
+}
+
 
 byte* round_buffer::rb(size_t offset) {
     return buffer + ( (readOffset + offset) % size );
@@ -44,7 +48,7 @@ byte round_buffer::read() {
 
 bool round_buffer::write(byte* c, size_t length) {
     if (length == 0) return false;
-    if ((mode & SAFE_WRITE) && ( (writeOffset + length) > readOffset)) {
+    if ((mode & SAFE_WRITE) && ( (writeOffset + length) > (readOffset + size))) { // TODO: does this work?
 //        throw runtime_error("round_buffer write overflow");
         return false; // TODO: throw an exception?
     }

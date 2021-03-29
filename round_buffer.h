@@ -40,6 +40,8 @@ public:
      */
     explicit round_buffer(size_t size, int mode = SAFE_READ | SAFE_WRITE);
 
+    ~round_buffer();
+
     /** @brief  Try read specified length of bytes from buffer
      *
      * @warning Reading more bytes than requested is undefined behavior
