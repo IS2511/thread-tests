@@ -17,6 +17,7 @@ private:
     size_t size;
     // Since size_t is AFAIK guaranteed to be unsigned
     // overflow is possible, but very far. Still, TODO: fix overflow
+    // UPD: Overflow fix is now a mode option (NO_OFFSET_OVERFLOW)
     // Also: volatile to keep up to date, we can read while writing
     volatile size_t readOffset;
     volatile size_t writeOffset;
@@ -25,13 +26,17 @@ private:
     // Helper functions to get pointers with read/write offsets + offset
     byte* rb(size_t offset = 0);
     byte* wb(size_t offset = 0);
+
+    // Decrease offsets if both > size to prevent overflow
+    void prevent_offset_overflow();
 public:
     /** @brief  Bitmask const
      * @param SAFE_READ  throws error when reading old or unwritten data<br>
      * @param SAFE_WRITE  throws error when writing over unread data
      */
-    static constexpr int SAFE_READ =  1,
-                         SAFE_WRITE = 2;
+    static constexpr int SAFE_READ = 1,
+                        SAFE_WRITE = 2,
+                NO_OFFSET_OVERFLOW = 4;
 
     /** @brief  round_buffer constructor
      *

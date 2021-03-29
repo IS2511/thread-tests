@@ -18,19 +18,22 @@ using namespace std;
 
 const size_t CHUNK_SIZE = ONE_MB;
 const size_t BUFFER_SIZE = 256 * CHUNK_SIZE; // 256 MB
-const size_t DATA_SIZE = 2 * 1024 * ONE_MB; // 2 GB
-//const size_t DATA_SIZE = 512 * ONE_MB;
+//const size_t DATA_SIZE = 2 * 1024 * ONE_MB; // 2 GB
+const size_t DATA_SIZE = 512 * ONE_MB;
 
-uint32_t chunkInboundSpeedUpper = 100000;
+//queue<char> cisLog;
+uint32_t chunkInboundSpeedUpper = 1000000;
 uint32_t chunkInboundSpeedLower = 0;
 uint32_t chunkInboundSpeed = (chunkInboundSpeedUpper + chunkInboundSpeedLower)/2;
 void cisLower() {
     chunkInboundSpeedUpper = chunkInboundSpeed;
     chunkInboundSpeed = (chunkInboundSpeedUpper + chunkInboundSpeedLower)/2;
+//    cisLog.push('<'); // slower
 }
 void cisHigher() {
     chunkInboundSpeedLower = chunkInboundSpeed;
     chunkInboundSpeed = (chunkInboundSpeedUpper + chunkInboundSpeedLower)/2;
+//    cisLog.push('>'); // faster
 }
 
 
@@ -68,13 +71,18 @@ void counterFunc(const char* DATA) {
         // TODO: Is this needed? listenerThread should take care of this
         if ( !chunkBuffer.write( (byte*) (DATA + offset), CHUNK_SIZE) ) {
             cisLower(); // Speed down inbound if catching up to read pointer
+            offset -= CHUNK_SIZE; // Back up to not lose data
         }
 
 //        cout << ".";  cout.flush(); // TODO: Needed?
 
-        // TODO: this probably does not work... busy waiting instead?
-        // Slows down a lot, but only on very small time scales
-        cvCounter.wait_until(lck, tmrStart + chrono::microseconds(1000000 / chunkInboundSpeed) );
+//        // TODO: this probably does not work... busy waiting instead?
+//        // Slows down a lot, but only on very small time scales
+//        cvCounter.wait_until(lck, tmrStart + chrono::microseconds(1000000 / chunkInboundSpeed) );
+
+        while ( chrono::high_resolution_clock::now() <
+                ( tmrStart + chrono::microseconds(1000000 / chunkInboundSpeed) )
+              ) ; // Busy wait
     }
 
     outOfChunks = true;
@@ -168,5 +176,20 @@ int main(int argc, char* argv[]) {
 
     cout << "\nProgram finished!\n";
     cout << "Final chunk inbound speed (chunk/s): " << chunkInboundSpeed << endl;
+
+//    while (!cisLog.empty()) {
+//        cout << cisLog.front();
+//        cisLog.pop();
+//    }
+
+//    round_buffer buff(ONE_MB);
+//
+//    for (size_t i = 0; i < ONE_MB*2; i++) {
+//        if ( !buff.write( static_cast<byte>((i%255)+1) ) ) {
+//            cout << "Yep, works! On: " << i << endl;
+//            buff.read(ONE_MB/2);
+//        }
+//    }
+
 
 }

@@ -28,9 +28,17 @@ byte* round_buffer::wb(size_t offset) {
     return buffer + ( (writeOffset + offset) % size );
 }
 
+void round_buffer::prevent_offset_overflow() {
+    if ( (readOffset > size) && (writeOffset > size) ) {
+        readOffset -= size;
+        writeOffset -= size;
+    }
+}
+
 
 byte* round_buffer::read(size_t length) {
     if (length == 0) return nullptr;
+    if (mode & NO_OFFSET_OVERFLOW) prevent_offset_overflow();
     if ((mode & SAFE_READ) && ( (readOffset + length) > writeOffset)) {
 //        throw runtime_error("round_buffer read overflow");
         return nullptr; // TODO: throw an exception?
@@ -48,7 +56,8 @@ byte round_buffer::read() {
 
 bool round_buffer::write(byte* c, size_t length) {
     if (length == 0) return false;
-    if ((mode & SAFE_WRITE) && ( (writeOffset + length) > (readOffset + size))) { // TODO: does this work?
+    if (mode & NO_OFFSET_OVERFLOW) prevent_offset_overflow();
+    if ((mode & SAFE_WRITE) && ( (writeOffset + length) > (readOffset + size))) {
 //        throw runtime_error("round_buffer write overflow");
         return false; // TODO: throw an exception?
     }
