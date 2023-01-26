@@ -4,7 +4,7 @@ Job applications am I right guys? (part 2)
 
 ## Badges
 
-[![GHA build badge](https://img.shields.io/github/workflow/status/IS2511/thread-tests/CMake/master?label=GHA%20build)](https://github.com/IS2511/thread-tests/actions)
+[![GHA build badge](https://img.shields.io/github/actions/workflow/status/IS2511/thread-tests/cmake.yml?branch=master&label=GHA%20build)](https://github.com/IS2511/thread-tests/actions)
 
 [![Sample text badge](https://img.shields.io/badge/Sample-text-blue?style=flat)](https://theuselessweb.com/)
 
